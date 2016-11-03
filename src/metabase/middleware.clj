@@ -147,7 +147,9 @@
 
 (def ^:private ^:const content-security-policy-header
   "`Content-Security-Policy` header. See [http://content-security-policy.com](http://content-security-policy.com) for more details."
-  {"Content-Security-Policy" (apply str (for [[k vs] {:default-src ["'none'"]
+  { "Access-Control-Allow-Origin"        "https://laruta.dev"
+    "Access-Control-Allow-Credentials"   "true"
+    "Content-Security-Policy" (apply str (for [[k vs] {:default-src ["'none'"]
                                                       :script-src  ["'unsafe-inline'"
                                                                     "'unsafe-eval'"
                                                                     "'self'"
@@ -197,10 +199,11 @@
          strict-transport-security-header
          content-security-policy-header
          #_(public-key-pins-header)
-         {"X-Frame-Options"                   "DENY"          ; Tell browsers not to render our site as an iframe (prevent clickjacking)
-          "X-XSS-Protection"                  "1; mode=block" ; Tell browser to block suspected XSS attacks
-          "X-Permitted-Cross-Domain-Policies" "none"          ; Prevent Flash / PDF files from including content from site.
-          "X-Content-Type-Options"            "nosniff"}))    ; Tell browser not to use MIME sniffing to guess types of files -- protect against MIME type confusion attacks
+         {}))
+          ;"X-Frame-Options"                   "DENY"          ; Tell browsers not to render our site as an iframe (prevent clickjacking)
+          ;"X-XSS-Protection"                  "1; mode=block" ; Tell browser to block suspected XSS attacks
+          ;"X-Permitted-Cross-Domain-Policies" "none"          ; Prevent Flash / PDF files from including content from site.
+          ;"X-Content-Type-Options"            "nosniff"}))    ; Tell browser not to use MIME sniffing to guess types of files -- protect against MIME type confusion attacks
 
 (defn add-security-headers
   "Add HTTP headers to tell browsers not to cache API responses."
