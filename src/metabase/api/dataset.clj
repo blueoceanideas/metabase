@@ -10,7 +10,8 @@
                              [hydrate :refer [hydrate]]
                              [query-execution :refer [QueryExecution]])
             (metabase [query-processor :as qp]
-                      [util :as u])))
+                      [util :as u])
+            [metabase.util.schema :as su]))
 
 (def ^:private ^:const max-results-bare-rows
   "Maximum number of rows to return specifically on :rows type queries via the API."
@@ -67,26 +68,9 @@
 (defendpoint POST "/csv"
   "Execute a query and download the result data as a CSV file."
   [query]
-  {query [Required String->Dict]}
+  {query su/JSONString}
   (read-check Database (:database query))
-  (as-csv (qp/dataset-query query {:executed-by *current-user-id*})))
-
-
-;; TODO - AFAIK this endpoint is no longer used. Remove it? </3
-;; (We have POST /api/card/:id/query now which is used instead)
-(defendpoint GET "/card/:id"
-  "Execute the MQL query for a given `Card` and retrieve both the `Card` and the execution results as JSON.
-   This is a convenience endpoint which simplifies the normal 2 api calls to fetch the `Card` then execute its query."
-  [id]
-  (let-404 [{:keys [dataset_query] :as card} (Card id)]
-    (read-check card)
-    (read-check Database (:database dataset_query))
-    ;; add sensible constraints for results limits on our query
-    ;; TODO: it would be nice to associate the card :id with the query execution tracking
-    (let [query   (assoc dataset_query :constraints query-constraints)
-          options {:executed-by *current-user-id*}]
-      {:card   (hydrate card :creator)
-       :result (qp/dataset-query query options)})))
+  (as-csv (qp/dataset-query (json/parse-string query keyword) {:executed-by *current-user-id*})))
 
 
 (define-routes)
