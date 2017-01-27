@@ -1,9 +1,11 @@
+/* @flow weak */
 
 import { combineReducers } from 'redux';
 
 import auth from "metabase/auth/auth";
 
 /* ducks */
+import app from "metabase/redux/app";
 import metadata from "metabase/redux/metadata";
 import requests from "metabase/redux/requests";
 import undo from "metabase/redux/undo";
@@ -36,10 +38,11 @@ import * as setup from "metabase/setup/reducers";
 
 /* user */
 import * as user from "metabase/user/reducers";
-import { currentUser } from "metabase/user";
+import { currentUser } from "metabase/redux/user";
 
 const reducers = {
     // global reducers
+    app,
     auth,
     currentUser,
     metadata,

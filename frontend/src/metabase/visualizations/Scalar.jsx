@@ -1,3 +1,5 @@
+/* @flow */
+
 import React, { Component, PropTypes } from "react";
 import { Link } from "react-router";
 import styles from "./Scalar.css";
@@ -13,7 +15,9 @@ import cx from "classnames";
 import { getIn } from "icepick";
 import d3 from "d3";
 
-export default class Scalar extends Component {
+import type { VisualizationProps } from "metabase/visualizations";
+
+export default class Scalar extends Component<*, VisualizationProps, *> {
     static uiName = "Number";
     static identifier = "scalar";
     static iconName = "number";
@@ -41,11 +45,18 @@ export default class Scalar extends Component {
     static transformSeries(series) {
         if (series.length > 1) {
             return series.map(s => ({
-                card: { ...s.card, display: "funnel" },
+                card: {
+                    ...s.card,
+                    display: "funnel",
+                    visualization_settings: {
+                        ...s.card.visualization_settings,
+                        "graph.x_axis.labels_enabled": false
+                    }
+                },
                 data: {
                     cols: [
-                        { base_type: TYPE.Text, display_name: "Name", name: "dimension" },
-                        { ...s.data.cols[0], display_name: "Value", name: "metric" }],
+                        { base_type: TYPE.Text, display_name: "Name", name: "name" },
+                        { ...s.data.cols[0] }],
                     rows: [
                         [s.card.name, s.data.rows[0][0]]
                     ]
