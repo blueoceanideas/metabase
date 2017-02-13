@@ -7,7 +7,6 @@ import LegendHeader from "./LegendHeader.jsx";
 import ChartTooltip from "./ChartTooltip.jsx";
 
 import "./LineAreaBarChart.css";
-import lineAreaBarRenderer from "metabase/visualizations/lib/LineAreaBarRenderer";
 
 import { isNumeric, isDate } from "metabase/lib/schema_metadata";
 import {
@@ -32,16 +31,21 @@ for (let i = 0; i < MAX_SERIES; i++) {
     addCSSRule(`.LineAreaBarChart.mute-${i} svg.stacked .stack._${i} .line`,       MUTE_STYLE);
     addCSSRule(`.LineAreaBarChart.mute-${i} svg.stacked .stack._${i} .bar`,        MUTE_STYLE);
     addCSSRule(`.LineAreaBarChart.mute-${i} svg.stacked .dc-tooltip._${i} .dot`,   MUTE_STYLE);
+
     addCSSRule(`.LineAreaBarChart.mute-${i} svg:not(.stacked) .sub._${i} .bar`,    MUTE_STYLE);
     addCSSRule(`.LineAreaBarChart.mute-${i} svg:not(.stacked) .sub._${i} .line`,   MUTE_STYLE);
     addCSSRule(`.LineAreaBarChart.mute-${i} svg:not(.stacked) .sub._${i} .dot`,    MUTE_STYLE);
     addCSSRule(`.LineAreaBarChart.mute-${i} svg:not(.stacked) .sub._${i} .bubble`, MUTE_STYLE);
+
+    // row charts don't support multiseries
+    addCSSRule(`.LineAreaBarChart.mute-${i} svg:not(.stacked) .row`, MUTE_STYLE);
 }
 
 import type { VisualizationProps } from "metabase/visualizations";
 
 export default class LineAreaBarChart extends Component<*, VisualizationProps, *> {
-    static identifier;
+    static identifier: string;
+    static renderer: (element: Element, props: VisualizationProps) => any;
 
     static noHeader = true;
     static supportsSeries = true;
@@ -124,10 +128,6 @@ export default class LineAreaBarChart extends Component<*, VisualizationProps, *
         }
     }
 
-    getChartType() {
-        return this.constructor.identifier;
-    }
-
     getFidelity() {
         let fidelity = { x: 0, y: 0 };
         let size = this.props.gridSize ||  { width: Infinity, height: Infinity };
@@ -175,7 +175,7 @@ export default class LineAreaBarChart extends Component<*, VisualizationProps, *
     }
 
     render() {
-        const { series, hovered, isDashboard, actionButtons } = this.props;
+        const { series, hovered, isDashboard, actionButtons, linkToCard } = this.props;
 
         const settings = this.getSettings();
 
@@ -202,6 +202,7 @@ export default class LineAreaBarChart extends Component<*, VisualizationProps, *
                         className="flex-no-shrink"
                         series={titleHeaderSeries}
                         actionButtons={actionButtons}
+                        linkToCard={linkToCard}
                     />
                 : null }
                 { multiseriesHeaderSeries || (!titleHeaderSeries && actionButtons) ? // always show action buttons if we have them
@@ -212,16 +213,16 @@ export default class LineAreaBarChart extends Component<*, VisualizationProps, *
                         hovered={hovered}
                         onHoverChange={this.props.onHoverChange}
                         actionButtons={!titleHeaderSeries ? actionButtons : null}
+                        linkToCard={linkToCard}
                     />
                 : null }
                 <CardRenderer
                     {...this.props}
-                    chartType={this.getChartType()}
                     series={series}
                     settings={settings}
                     className="renderer flex-full"
                     maxSeries={MAX_SERIES}
-                    renderer={lineAreaBarRenderer}
+                    renderer={this.constructor.renderer}
                 />
                 <ChartTooltip series={series} hovered={hovered} />
             </div>

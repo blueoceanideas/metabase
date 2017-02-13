@@ -7,6 +7,7 @@ import Progress   from "./Progress.jsx";
 import Table      from "./Table.jsx";
 import LineChart  from "./LineChart.jsx";
 import BarChart   from "./BarChart.jsx";
+import RowChart   from "./RowChart.jsx";
 import PieChart   from "./PieChart.jsx";
 import AreaChart  from "./AreaChart.jsx";
 import MapViz     from "./Map.jsx";
@@ -43,6 +44,7 @@ export type VisualizationProps = {
     isDashboard: boolean,
     isEditing: boolean,
     actionButtons: Node,
+    linkToCard?: bool,
 
     hovered: ?HoverObject,
     onHoverChange: (?HoverObject) => void,
@@ -109,8 +111,9 @@ registerVisualization(Scalar);
 registerVisualization(Progress);
 registerVisualization(Table);
 registerVisualization(LineChart);
-registerVisualization(BarChart);
 registerVisualization(AreaChart);
+registerVisualization(BarChart);
+registerVisualization(RowChart);
 registerVisualization(ScatterPlot);
 registerVisualization(PieChart);
 registerVisualization(MapViz);
