@@ -181,10 +181,16 @@
                                                                     "*.gstatic.com"
                                                                     "js.intercomcdn.com"
                                                                     "*.intercom.io"
+                                                                    "*.macpa.org"
+                                                                    "*.staging.laruta.io"
+                                                                    "*.laruta.dev"
                                                                     (when config/is-dev?
                                                                       "localhost:8080")]
                                                       :frame-src   ["'self'"
-                                                                    "https://accounts.google.com"] ; TODO - double check that we actually need this for Google Auth
+                                                                    "https://accounts.google.com"
+                                                                    "*.macpa.org"
+                                                                    "*.staging.laruta.io"
+                                                                    "*.laruta.dev"] ; TODO - double check that we actually need this for Google Auth
                                                       :style-src   ["'unsafe-inline'"
                                                                     "'self'"
                                                                     "fonts.googleapis.com"]
@@ -221,8 +227,8 @@
          strict-transport-security-header
          content-security-policy-header
          #_(public-key-pins-header)
-         (when-not allow-iframes?
-           {"X-Frame-Options"                 "DENY"})        ; Tell browsers not to render our site as an iframe (prevent clickjacking)
+        ;  (when-not allow-iframes?
+          ;  {"X-Frame-Options"                 "DENY"})        ; Tell browsers not to render our site as an iframe (prevent clickjacking)
          {"X-XSS-Protection"                  "1; mode=block" ; Tell browser to block suspected XSS attacks
           "X-Permitted-Cross-Domain-Policies" "none"          ; Prevent Flash / PDF files from including content from site.
           "X-Content-Type-Options"            "nosniff"}))    ; Tell browser not to use MIME sniffing to guess types of files -- protect against MIME type confusion attacks
