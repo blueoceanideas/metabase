@@ -60,6 +60,11 @@ const Y_LABEL_PADDING = 22;
 const UNAGGREGATED_DATA_WARNING = (col) => `"${getFriendlyName(col)}" is an unaggregated field: if it has more than one value at a point on the x-axis, the values will be summed.`
 const NULL_DIMENSION_WARNING = "Data includes missing dimension values.";
 
+type CrossfilterGroup = {
+    top: (n: number) => { key: any, value: any },
+    all: () => { key: any, value: any },
+}
+
 function adjustTicksIfNeeded(axis, axisSize: number, minPixelsPerTick: number) {
     const ticks = axis.ticks();
     // d3.js is dumb and sometimes numTicks is a number like 10 and other times it is an Array like [10]
@@ -296,9 +301,16 @@ function applyChartTooltips(chart, series, isStacked, onHoverChange) {
 
                 let data = [];
                 if (Array.isArray(d.key)) { // scatter
-                    data = d.key.map((value, index) => (
-                        { key: getFriendlyName(cols[index]), value: value, col: cols[index] }
-                    ));
+                    if (d.key._origin) {
+                        data = d.key._origin.row.map((value, index) => {
+                            const col = d.key._origin.cols[index];
+                            return { key: getFriendlyName(col), value: value, col };
+                        });
+                    } else {
+                        data = d.key.map((value, index) => (
+                            { key: getFriendlyName(cols[index]), value: value, col: cols[index] }
+                        ));
+                    }
                 } else if (d.data) { // line, area, bar
                     if (!isSingleSeriesBar) {
                         cols = series[seriesIndex].data.cols;
@@ -701,6 +713,35 @@ function moment_fast_toString() {
     return this._i;
 }
 
+function makeIndexMap(values: Array<Value>): Map<Value, number> {
+    let indexMap = new Map()
+    for (const [index, key] of values.entries()) {
+        indexMap.set(key, index);
+    }
+    return indexMap;
+}
+
+// HACK: This ensures each group is sorted by the same order as xValues,
+// otherwise we can end up with line charts with x-axis labels in the correct order
+// but the points in the wrong order. There may be a more efficient way to do this.
+function forceSortedGroup(group: CrossfilterGroup, indexMap: Map<Value, number>): void {
+    // $FlowFixMe
+    const sorted = group.top(Infinity).sort((a, b) => indexMap.get(a.key) - indexMap.get(b.key));
+    for (let i = 0; i < sorted.length; i++) {
+        sorted[i].index = i;
+    }
+    group.all = () => sorted;
+}
+
+function forceSortedGroupsOfGroups(groupsOfGroups: CrossfilterGroup[][], indexMap: Map<Value, number>): void {
+    for (const groups of groupsOfGroups) {
+        for (const group of groups) {
+            forceSortedGroup(group, indexMap)
+        }
+    }
+}
+
+
 export default function lineAreaBar(element, { series, onHoverChange, onRender, chartType, isScalarSeries, settings, maxSeries }) {
     const colors = settings["graph.colors"];
 
@@ -725,16 +766,21 @@ export default function lineAreaBar(element, { series, onHoverChange, onRender, 
     }
 
     let datas = series.map((s, index) =>
-        s.data.rows.map(row => [
-            // don't parse as timestamp if we're going to display as a quantitative scale, e.x. years and Unix timestamps
-            (isDimensionTimeseries && !isQuantitative) ?
-                HACK_parseTimestamp(row[0], s.data.cols[0].unit, warn)
-            : isDimensionNumeric ?
-                row[0]
-            :
-                String(row[0])
-            , ...row.slice(1)
-        ])
+        s.data.rows.map(row => {
+            let newRow = [
+                // don't parse as timestamp if we're going to display as a quantitative scale, e.x. years and Unix timestamps
+                (isDimensionTimeseries && !isQuantitative) ?
+                    HACK_parseTimestamp(row[0], s.data.cols[0].unit, warn)
+                : isDimensionNumeric ?
+                    row[0]
+                :
+                    String(row[0])
+                , ...row.slice(1)
+            ]
+            // $FlowFixMe: _origin not typed
+            newRow._origin = row._origin;
+            return newRow;
+        })
     );
 
     // compute the x-values
@@ -796,9 +842,9 @@ export default function lineAreaBar(element, { series, onHoverChange, onRender, 
         let dataset = crossfilter();
         datas.map(data => dataset.add(data));
 
-        dimension = dataset.dimension(d => [d[0], d[1]]);
+        dimension = dataset.dimension(row => row);
         groups = datas.map(data => {
-            let dim = crossfilter(data).dimension(d => d);
+            let dim = crossfilter(data).dimension(row => row);
             return [
                 dim.group().reduceSum((d) => d[2] || 1)
             ]
@@ -858,21 +904,9 @@ export default function lineAreaBar(element, { series, onHoverChange, onRender, 
         yAxisSplit = [series.map((s,i) => i)];
     }
 
-    // HACK: This ensures each group is sorted by the same order as xValues,
-    // otherwise we can end up with line charts with x-axis labels in the correct order
-    // but the points in the wrong order. There may be a more efficient way to do this.
     // Don't apply to linear or timeseries X-axis since the points are always plotted in order
     if (!isTimeseries && !isQuantitative) {
-        let sortMap = new Map()
-        for (const [index, key] of xValues.entries()) {
-            sortMap.set(key, index);
-        }
-        for (const group of groups) {
-            group.forEach(g => {
-                const sorted = g.top(Infinity).sort((a, b) => sortMap.get(a.key) - sortMap.get(b.key));
-                g.all = () => sorted;
-            });
-        }
+        forceSortedGroupsOfGroups(groups, makeIndexMap(xValues));
     }
 
     let parent = dc.compositeChart(element);
@@ -1067,6 +1101,9 @@ export function rowRenderer(
   const dimension = dataset.dimension(d => d[0]);
   const group = dimension.group().reduceSum(d => d[1]);
   const xDomain = d3.extent(series[0].data.rows, d => d[1]);
+  const yValues = series[0].data.rows.map(d => d[0]);
+
+  forceSortedGroup(group, makeIndexMap(yValues));
 
   initChart(chart, element);
 
@@ -1096,7 +1133,7 @@ export function rowRenderer(
     .ordering(d => d.index);
 
   let labelPadHorizontal = 5;
-  let labelPadVertical = 2;
+  let labelPadVertical = 1;
   let labelsOutside = false;
 
   chart.on("renderlet.bar-labels", chart => {
