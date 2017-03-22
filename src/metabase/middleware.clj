@@ -347,7 +347,8 @@
   (fn [request]
     (try (binding [*automatically-catch-api-exceptions* false]
            (handler request))
-         (catch Throwable _
+         (catch Throwable e
+           (log/error (.getMessage e))
            {:status 400, :body "An error occurred."}))))
 
 (defn message-only-exceptions
