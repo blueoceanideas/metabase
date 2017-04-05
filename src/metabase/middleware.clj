@@ -9,6 +9,7 @@
             [metabase.api.common :refer [*current-user* *current-user-id* *is-superuser?* *current-user-permissions-set*]]
             [metabase.api.common.internal :refer [*automatically-catch-api-exceptions*]]
             [metabase.config :as config]
+            [metabase.core.initialization-status :as init-status]
             [metabase.db :as mdb]
             (metabase.models [session :refer [Session]]
                              [setting :refer [defsetting]]
@@ -89,9 +90,7 @@
 (defn- current-user-info-for-session
   "Return User ID and superuser status for Session with SESSION-ID if it is valid and not expired."
   [session-id]
-  (when (and session-id (or ((resolve 'metabase.core/initialized?))
-                            (println "Metabase is not initialized!") ; NOCOMMIT
-                            ))
+  (when (and session-id (init-status/complete?))
     (when-let [session (or (session-with-id session-id)
                            (println "no matching session with ID") ; NOCOMMIT
                            )]
@@ -101,7 +100,7 @@
          :is-superuser?    (:is_superuser session)}))))
 
 (defn- add-current-user-info [{:keys [metabase-session-id], :as request}]
-  (when-not ((resolve 'metabase.core/initialized?))
+  (when-not (init-status/complete?)
     (println "Metabase is not initialized yet!")) ; DEBUG
   (merge request (current-user-info-for-session metabase-session-id)))
 
@@ -191,15 +190,13 @@
                                                                     "https://www.google-analytics.com" ; Safari requires the protocol
                                                                     "https://*.googleapis.com"
                                                                     "*.gstatic.com"
-                                                                    "js.intercomcdn.com"
-                                                                    "*.intercom.io"
                                                                     "*.macpa.org"
                                                                     "*.staging.laruta.io"
                                                                     "*.laruta.dev"
                                                                     (when config/is-dev?
                                                                       "localhost:8080")]
-                                                      :frame-src   ["'self'"
-                                                                    "https://accounts.google.com"
+                                                      :child-src   ["'self'"
+                                                                    "https://accounts.google.com"] ; TODO - double check that we actually need this for Google Auth
                                                                     "*.macpa.org"
                                                                     "*.staging.laruta.io"
                                                                     "*.laruta.dev"] ; TODO - double check that we actually need this for Google Auth
@@ -212,11 +209,9 @@
                                                                     (when config/is-dev?
                                                                       "localhost:8080")]
                                                       :img-src     ["*"
-                                                                    "self data:"]
+                                                                    "'self' data:"]
                                                       :connect-src ["'self'"
                                                                     "metabase.us10.list-manage.com"
-                                                                    "*.intercom.io"
-                                                                    "wss://*.intercom.io" ; allow websockets as well
                                                                     (when config/is-dev?
                                                                       "localhost:8080 ws://localhost:8080")]}]
                                           (format "%s %s; " (name k) (apply str (interpose " " vs)))))})
@@ -239,8 +234,8 @@
          strict-transport-security-header
          content-security-policy-header
          #_(public-key-pins-header)
-        ;  (when-not allow-iframes?
-          ;  {"X-Frame-Options"                 "DENY"})        ; Tell browsers not to render our site as an iframe (prevent clickjacking)
+         (when-not allow-iframes?
+           {"X-Frame-Options"                 "DENY"})        ; Tell browsers not to render our site as an iframe (prevent clickjacking)
          {"X-XSS-Protection"                  "1; mode=block" ; Tell browser to block suspected XSS attacks
           "X-Permitted-Cross-Domain-Policies" "none"          ; Prevent Flash / PDF files from including content from site.
           "X-Content-Type-Options"            "nosniff"}))    ; Tell browser not to use MIME sniffing to guess types of files -- protect against MIME type confusion attacks
@@ -267,10 +262,11 @@
   "Middleware to set the `site-url` Setting if it's unset the first time a request is made."
   [handler]
   (fn [{{:strs [origin host] :as headers} :headers, :as request}]
+    (when (mdb/db-is-setup?)
     (when-not (public-settings/site-url)
       (when-let [site-url (or origin host)]
         (log/info "Setting Metabase site URL to" site-url)
-        (public-settings/site-url site-url)))
+          (public-settings/site-url site-url))))
     (handler request)))
 
 
