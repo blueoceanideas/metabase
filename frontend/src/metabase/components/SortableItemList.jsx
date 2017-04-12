@@ -1,4 +1,5 @@
-import React, { Component, PropTypes } from "react";
+import React, { Component } from "react";
+import PropTypes from "prop-types";
 
 import "./SortableItemList.css";
 
@@ -36,7 +37,7 @@ export default class SortableItemList extends Component {
         return (
             <div className="SortableItemList">
                 <div className="flex align-center px2 pb3 border-bottom">
-                    <h5 className="text-bold text-uppercase text-grey-3 ml2 mr2">Sort by</h5>
+                    <h5 className="text-bold text-uppercase text-grey-3 ml2 mt1 mr2">Sort by</h5>
                     <Radio
                         value={this.state.sort}
                         options={["Last Modified", /*"Most Popular",*/  "Alphabetical Order"]}

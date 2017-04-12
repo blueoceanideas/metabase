@@ -69,12 +69,9 @@
     (format "IF object_id('%s.dbo.%s') IS NOT NULL DROP TABLE \"%s\".dbo.\"%s\";" db-name table-name db-name table-name)))
 
 (defn- qualified-name-components
-  ([db-name]
-   [(+suffix db-name)])
-  ([db-name table-name]
-   [(+suffix db-name) "dbo" table-name])
-  ([db-name table-name field-name]
-   [(+suffix db-name) "dbo" table-name field-name]))
+  ([db-name]                       [(+suffix db-name)])
+  ([db-name table-name]            [(+suffix db-name) "dbo" table-name])
+  ([db-name table-name field-name] [(+suffix db-name) "dbo" table-name field-name]))
 
 
 (u/strict-extend SQLServerDriver
@@ -105,7 +102,7 @@
       (with-redefs [+suffix identity]
         (doseq [db leftover-dbs]
           (u/ignore-exceptions
-            (println (format "Deleting leftover SQL Server DB '%s'..." db))
+            (printf "Deleting leftover SQL Server DB '%s'...\n" db)
             ;; Don't try to kill other connections to this DB with SET SINGLE_USER -- some other instance (eg CI) might be using it
             (jdbc/execute! connection-spec [(format "DROP DATABASE \"%s\";" db)])
             (println "[ok]")))))))

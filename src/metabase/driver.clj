@@ -2,8 +2,8 @@
   (:require [clojure.math.numeric-tower :as math]
             [clojure.tools.logging :as log]
             [medley.core :as m]
-            (metabase [config :as config]
-                      [db :as db])
+            [toucan.db :as db]
+            [metabase.config :as config]
             (metabase.models [database :refer [Database]]
                              field
                              [query-execution :refer [QueryExecution]]
@@ -135,7 +135,8 @@
   *  `:standard-deviation-aggregations` - Does this driver support [standard deviation aggregations](https://github.com/metabase/metabase/wiki/Query-Language-'98#stddev-aggregation)?
   *  `:expressions` - Does this driver support [expressions](https://github.com/metabase/metabase/wiki/Query-Language-'98#expressions) (e.g. adding the values of 2 columns together)?
   *  `:dynamic-schema` -  Does this Database have no fixed definitions of schemas? (e.g. Mongo)
-  *  `:native-parameters` - Does the driver support parameter substitution on native queries?")
+  *  `:native-parameters` - Does the driver support parameter substitution on native queries?
+  *  `:expression-aggregations` - Does the driver support using expressions inside aggregations? e.g. something like \"sum(x) + count(y)\" or \"avg(x + y)\"")
 
   (field-values-lazy-seq ^clojure.lang.Sequential [this, ^FieldInstance field]
     "Return a lazy sequence of all values of FIELD.
@@ -143,6 +144,12 @@
 
   The lazy sequence should not return more than `max-sync-lazy-seq-results`, which is currently `10000`.
   For drivers that provide a chunked implementation, a recommended chunk size is `field-values-lazy-seq-chunk-size`, which is currently `500`.")
+
+  (format-custom-field-name ^String [this, ^String custom-field-name]
+    "*OPTIONAL*. Return the custom name passed via an MBQL `:named` clause so it matches the way it is returned in the results.
+     This is used by the post-processing annotation stage to find the correct metadata to include with fields in the results.
+     The default implementation is `identity`, meaning the resulting field will have exactly the same name as passed to the `:named` clause.
+     Certain drivers like Redshift always lowercase these names, so this method is provided for those situations.")
 
   (humanize-connection-error-message ^String [this, ^String message]
     "*OPTIONAL*. Return a humanized (user-facing) version of an connection error message string.
@@ -235,6 +242,7 @@
    :date-interval                     (u/drop-first-arg u/relative-date)
    :describe-table-fks                (constantly nil)
    :features                          (constantly nil)
+   :format-custom-field-name          (u/drop-first-arg identity)
    :humanize-connection-error-message (u/drop-first-arg identity)
    :notify-database-updated           (constantly nil)
    :process-query-in-context          (u/drop-first-arg identity)
@@ -256,7 +264,7 @@
   [^Keyword engine, driver-instance]
   {:pre [(keyword? engine) (map? driver-instance)]}
   (swap! registered-drivers assoc engine driver-instance)
-  (log/debug (format "Registered driver %s 🚚" (u/format-color 'blue engine))))
+  (log/debug (format "Registered driver %s %s" (u/format-color 'blue engine) (u/emoji "🚚"))))
 
 (defn available-drivers
   "Info about available drivers."
@@ -304,6 +312,7 @@
              [java.sql.Date                  :type/Date]
              [java.sql.Timestamp             :type/DateTime]
              [java.util.Date                 :type/DateTime]
+             [org.joda.time.DateTime         :type/DateTime]
              [java.util.UUID                 :type/Text]       ; shouldn't this be :type/UUID ?
              [clojure.lang.IPersistentMap    :type/Dictionary]
              [clojure.lang.IPersistentVector :type/Array]
@@ -355,8 +364,7 @@
 
      (can-connect-with-details? :postgres {:host \"localhost\", :port 5432, ...})"
   [engine details-map & [rethrow-exceptions]]
-  {:pre [(keyword? engine)
-         (map? details-map)]}
+  {:pre [(keyword? engine) (map? details-map)]}
   (let [driver (engine->driver engine)]
     (try
       (u/with-timeout can-connect-timeout-ms

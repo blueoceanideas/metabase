@@ -21,6 +21,8 @@ profiles.clj
 /*.trace.db
 /resources/frontend_client/app/dist/
 /resources/frontend_client/index.html
+/resources/frontend_client/public.html
+/resources/frontend_client/embed.html
 /node_modules/
 /.babel_cache
 /coverage
@@ -44,3 +46,4 @@ bin/release/aws-eb/metabase-aws-eb.zip
 /plugins
 /build.xml
 /test-report-*
+/crate-*

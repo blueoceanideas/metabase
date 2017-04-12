@@ -1,4 +1,7 @@
-import React, { Component, PropTypes } from "react";
+/* @flow */
+
+import React, { Component } from "react";
+import PropTypes from "prop-types";
 
 import FieldList from "../FieldList.jsx";
 import OperatorSelector from "./OperatorSelector.jsx";
@@ -15,33 +18,62 @@ import { isDate } from "metabase/lib/schema_metadata";
 import { singularize } from "metabase/lib/formatting";
 
 import cx from "classnames";
-import _ from "underscore";
 
-export default class FilterPopover extends Component {
-    constructor(props, context) {
-        super(props, context);
+import type { FieldFilter, ConcreteField, ExpressionClause } from "metabase/meta/types/Query";
+import type { TableMetadata, FieldMetadata, Operator } from "metabase/meta/types/Metadata";
+
+type Props = {
+    filter?: FieldFilter,
+    onCommitFilter: () => void,
+    onClose: () => void,
+    tableMetadata: TableMetadata,
+    customFields: ExpressionClause
+}
+
+type State = {
+    filter: FieldFilter
+}
+
+export default class FilterPopover extends Component<*, Props, State> {
+    props: Props;
+    state: State;
+
+    constructor(props: Props) {
+        super(props);
 
         this.state = {
-            filter: (props.isNew ? [] : props.filter)
+            // $FlowFixMe
+            filter: props.filter || []
         };
-
-        _.bindAll(this, "setField", "clearField", "setOperator", "setValues", "setFilter", "commitFilter");
     }
 
     static propTypes = {
-        isNew: PropTypes.bool,
         filter: PropTypes.array,
         onCommitFilter: PropTypes.func.isRequired,
         onClose: PropTypes.func.isRequired,
         tableMetadata: PropTypes.object.isRequired
     };
 
-    commitFilter(filter) {
+    componentWillMount() {
+        window.addEventListener('keydown', this.commitOnEnter);
+    }
+
+    componentWillUnmount() {
+        window.removeEventListener('keydown', this.commitOnEnter);
+    }
+
+    commitOnEnter = (event: KeyboardEvent) => {
+        if(this.isValid() && event.key === "Enter") {
+            this.commitFilter(this.state.filter);
+        }
+    }
+
+    commitFilter = (filter: FieldFilter) => {
         this.props.onCommitFilter(filter);
         this.props.onClose();
     }
 
-    setField(fieldId) {
+    setField = (fieldId: ConcreteField) => {
         let { filter } = this.state;
         if (filter[1] !== fieldId) {
             // different field, reset the filter
@@ -52,18 +84,21 @@ export default class FilterPopover extends Component {
 
             // default to the first operator
             let { field } = Query.getFieldTarget(filter[1], this.props.tableMetadata);
-            let operator = field.valid_operators[0].name;
 
+            // let the DatePicker choose the default operator, otherwise use the first one
+            let operator = isDate(field) ? null : field.valid_operators[0].name;
+
+            // $FlowFixMe
             filter = this._updateOperator(filter, operator);
         }
         this.setState({ filter });
     }
 
-    setFilter(filter) {
+    setFilter = (filter: FieldFilter) => {
         this.setState({ filter });
     }
 
-    setOperator(operator) {
+    setOperator = (operator: string) => {
         let { filter } = this.state;
         if (filter[0] !== operator) {
             filter = this._updateOperator(filter, operator);
@@ -71,24 +106,26 @@ export default class FilterPopover extends Component {
         }
     }
 
-    setValue(index, value) {
+    setValue(index: number, value: any) {
         let { filter } = this.state;
         filter[index + 2] = value;
         this.setState({ filter: filter });
     }
 
-    setValues(values) {
+    setValues = (values: any[]) => {
         let { filter } = this.state;
+        // $FlowFixMe
         this.setState({ filter: filter.slice(0,2).concat(values) });
     }
 
-    _updateOperator(oldFilter, operatorName) {
+    _updateOperator(oldFilter: FieldFilter, operatorName: ?string): FieldFilter {
         let { field } = Query.getFieldTarget(oldFilter[1], this.props.tableMetadata);
         let operator = field.operators_lookup[operatorName];
         let oldOperator = field.operators_lookup[oldFilter[0]];
 
         // update the operator
-        let filter = [operatorName, oldFilter[1]];
+        // $FlowFixMe
+        let filter: FieldFilter = [operatorName, oldFilter[1]];
 
         if (operator) {
             for (let i = 0; i < operator.fields.length; i++) {
@@ -137,16 +174,20 @@ export default class FilterPopover extends Component {
         return true;
     }
 
-    clearField() {
+    clearField = () => {
         let { filter } = this.state;
+        // $FlowFixMe
         this.setState({ filter: [...filter.slice(0, 1), null, ...filter.slice(2)] });
     }
 
-    renderPicker(filter, field) {
-        let operator = field.operators_lookup[filter[0]];
+    renderPicker(filter: FieldFilter, field: FieldMetadata) {
+        let operator: ?Operator = field.operators_lookup[filter[0]];
         return operator && operator.fields.map((operatorField, index) => {
+            if (!operator) {
+                return;
+            }
             let values, onValuesChange;
-            let placeholder = operator.placeholders && operator.placeholders[index] || undefined;
+            let placeholder = operator && operator.placeholders && operator.placeholders[index] || undefined;
             if (operator.multi) {
                 values = this.state.filter.slice(2);
                 onValuesChange = (values) => this.setValues(values);
@@ -162,6 +203,7 @@ export default class FilterPopover extends Component {
                         onValuesChange={onValuesChange}
                         placeholder={placeholder}
                         multi={operator.multi}
+                        onCommit={this.onCommit}
                     />
                 );
             } else if (operatorField.type === "text") {
@@ -171,6 +213,7 @@ export default class FilterPopover extends Component {
                         onValuesChange={onValuesChange}
                         placeholder={placeholder}
                         multi={operator.multi}
+                        onCommit={this.onCommit}
                     />
                 );
             } else if (operatorField.type === "number") {
@@ -180,11 +223,18 @@ export default class FilterPopover extends Component {
                         onValuesChange={onValuesChange}
                         placeholder={placeholder}
                         multi={operator.multi}
+                        onCommit={this.onCommit}
                     />
                 );
             }
             return <span>not implemented {operatorField.type} {operator.multi ? "true" : "false"}</span>;
         });
+    }
+
+    onCommit = () => {
+        if (this.isValid()) {
+            this.commitFilter(this.state.filter)
+        }
     }
 
     render() {
@@ -209,7 +259,9 @@ export default class FilterPopover extends Component {
             let { table, field } = Query.getFieldTarget(filter[1], this.props.tableMetadata);
 
             return (
-                <div style={{width: 300}}>
+                <div style={{
+                    minWidth: 300
+                }}>
                     <div className="FilterPopover-header text-grey-3 p1 mt1 flex align-center">
                         <a className="cursor-pointer flex align-center" onClick={this.clearField}>
                             <Icon name="chevronleft" size={18}/>
@@ -220,10 +272,9 @@ export default class FilterPopover extends Component {
                     </div>
                     { isDate(field) ?
                         <DatePicker
+                            className="mt1 border-top"
                             filter={filter}
                             onFilterChange={this.setFilter}
-                            onOperatorChange={this.setOperator}
-                            tableMetadata={this.props.tableMetadata}
                         />
                     :
                         <div>
@@ -241,7 +292,7 @@ export default class FilterPopover extends Component {
                             className={cx("Button Button--purple full", { "disabled": !this.isValid() })}
                             onClick={() => this.commitFilter(this.state.filter)}
                         >
-                            {this.props.isNew ? "Add filter" : "Update filter"}
+                            {!this.props.filter ? "Add filter" : "Update filter"}
                         </button>
                     </div>
                 </div>
@@ -249,11 +300,3 @@ export default class FilterPopover extends Component {
         }
     }
 }
-
-FilterPopover.propTypes = {
-    tableMetadata: PropTypes.object.isRequired,
-    isNew: PropTypes.bool,
-    filter: PropTypes.array,
-    onCommitFilter: PropTypes.func.isRequired,
-    onClose: PropTypes.func.isRequired
-};

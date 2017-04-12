@@ -1,11 +1,12 @@
-import React, { Component, PropTypes } from "react";
+import React, { Component } from "react";
+import PropTypes from "prop-types";
 
 import CreateDashboardModal from 'metabase/components/CreateDashboardModal.jsx';
 import Icon from 'metabase/components/Icon.jsx';
 import ModalContent from "metabase/components/ModalContent.jsx";
 import SortableItemList from 'metabase/components/SortableItemList.jsx';
 
-import Urls from "metabase/lib/urls";
+import * as Urls from "metabase/lib/urls";
 import { DashboardApi } from "metabase/services";
 
 import moment from 'moment';
@@ -25,7 +26,7 @@ export default class AddToDashSelectDashModal extends Component {
 
     static propTypes = {
         card: PropTypes.object.isRequired,
-        closeFn: PropTypes.func.isRequired,
+        onClose: PropTypes.func.isRequired,
         onChangeLocation: PropTypes.func.isRequired
     };
 
@@ -54,13 +55,13 @@ export default class AddToDashSelectDashModal extends Component {
         if (!this.state.dashboards) {
             return null;
         } else if (this.state.dashboards.length === 0 || this.state.shouldCreateDashboard === true) {
-            return <CreateDashboardModal createDashboardFn={this.createDashboard} closeFn={this.props.closeFn} />
+            return <CreateDashboardModal createDashboardFn={this.createDashboard} onClose={this.props.onClose} />
         } else {
             return (
                 <ModalContent
                     id="AddToDashSelectDashModal"
                     title="Add Question to Dashboard"
-                    closeFn={this.props.closeFn}
+                    onClose={this.props.onClose}
                 >
                 <div className="flex flex-column">
                     <div
@@ -68,7 +69,7 @@ export default class AddToDashSelectDashModal extends Component {
                         onClick={() => this.setState({ shouldCreateDashboard: true })}
                     >
                         <div
-                            className="flex align-center absolute"
+                            className="mt1 flex align-center absolute"
                             style={ { right: 40 } }
                         >
                             <Icon name="add" size={16} />

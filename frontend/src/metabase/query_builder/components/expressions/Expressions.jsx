@@ -1,11 +1,12 @@
-import React, { Component, PropTypes } from "react";
+import React, { Component } from "react";
+import PropTypes from "prop-types";
 import _ from "underscore";
 
 import Icon from "metabase/components/Icon.jsx";
 import IconBorder from "metabase/components/IconBorder.jsx";
 import Tooltip from "metabase/components/Tooltip.jsx";
 
-import { formatExpression } from "metabase/lib/expressions";
+import { format } from "metabase/lib/expressions/formatter";
 
 
 export default class Expressions extends Component {
@@ -32,7 +33,10 @@ export default class Expressions extends Component {
                 { sortedNames && sortedNames.map(name =>
                     <div key={name} className="pb1 text-brand text-bold cursor-pointer flex flex-row align-center justify-between" onClick={() => onEditExpression(name)}>
                         <span>{name}</span>
-                        <Tooltip tooltip={formatExpression(expressions[name], this.props.tableMetadata.fields)}>
+                        <Tooltip tooltip={format(expressions[name], {
+                            tableMetadata: this.props.tableMetadata,
+                            customFields: expressions
+                        })}>
                             <span className="QuestionTooltipTarget" />
                         </Tooltip>
                     </div>

@@ -1,5 +1,6 @@
 /* eslint "react/prop-types": "warn" */
-import React, { Component, PropTypes } from "react";
+import React from "react";
+import PropTypes from "prop-types";
 import S from "./SearchHeader.css";
 
 import Icon from "metabase/components/Icon.jsx";
@@ -12,7 +13,7 @@ const SearchHeader = ({ searchText, setSearchText }) =>
         <input
             className={cx("input", S.searchBox)}
             type="text"
-            placeholder="Search for a question..."
+            placeholder="Filter this list..."
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
         />

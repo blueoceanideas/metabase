@@ -13,7 +13,8 @@
                                 [interface :as i])
             [metabase.util :as u]
             [metabase.util.honeysql-extensions :as hx])
-  (:import clojure.lang.Keyword
+  (:import java.sql.SQLException
+           clojure.lang.Keyword
            (metabase.test.data.interface DatabaseDefinition
                                          FieldDefinition
                                          TableDefinition)))
@@ -129,12 +130,9 @@
             (quot (pk-field-name driver)))))
 
 (defn- default-qualified-name-components
-  ([_ db-name]
-   [db-name])
-  ([_ db-name table-name]
-   [table-name])
-  ([_ db-name table-name field-name]
-   [table-name field-name]))
+  ([_ db-name]                       [db-name])
+  ([_ db-name table-name]            [table-name])
+  ([_ db-name table-name field-name] [table-name field-name]))
 
 (defn- default-quote-name [_ nm]
   (str \" nm \"))
@@ -221,7 +219,7 @@
                                           :quoting             (sql/quote-style driver)
                                           :allow-dashed-names? true)))]
     (try (jdbc/execute! spec sql+args)
-         (catch java.sql.SQLException e
+         (catch SQLException e
            (println (u/format-color 'red "INSERT FAILED: \n%s\n" sql+args))
            (jdbc/print-sql-exception-chain e)))))
 
@@ -252,15 +250,15 @@
       (let [sql (s/replace sql #";+" ";")]
         (try
           (jdbc/execute! (database->spec driver context dbdef) [sql] {:transaction? false, :multi? true})
-          (catch java.sql.SQLException e
+          (catch SQLException e
             (println "Error executing SQL:" sql)
-            (println (format "Caught SQLException:\n%s"
-                             (with-out-str (jdbc/print-sql-exception-chain e))))
+            (printf "Caught SQLException:\n%s\n"
+                    (with-out-str (jdbc/print-sql-exception-chain e)))
             (throw e))
           (catch Throwable e
             (println "Error executing SQL:" sql)
-            (println (format "Caught Exception: %s %s\n%s" (class e) (.getMessage e)
-                             (with-out-str (.printStackTrace e))))
+            (printf "Caught Exception: %s %s\n%s\n" (class e) (.getMessage e)
+                    (with-out-str (.printStackTrace e)))
             (throw e)))))))
 
 
@@ -321,14 +319,10 @@
   (doseq [tabledef table-definitions]
     (load-data! driver dbdef tabledef)))
 
-(defn- destroy-db! [driver dbdef]
-  (execute-sql! driver :server dbdef (drop-db-if-exists-sql driver dbdef)))
-
 (def IDatasetLoaderMixin
-  "Mixin for `IGenericSQLDatasetLoader` types to implemnt `create-db!` and `destroy-db!` from `IDatasetLoader`."
+  "Mixin for `IGenericSQLDatasetLoader` types to implement `create-db!` from `IDatasetLoader`."
   (merge i/IDatasetLoaderDefaultsMixin
-         {:create-db!  create-db!
-          :destroy-db! destroy-db!}))
+         {:create-db! create-db!}))
 
 
 ;;; ## Various Util Fns

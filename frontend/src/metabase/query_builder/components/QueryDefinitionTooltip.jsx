@@ -1,8 +1,9 @@
-import React, { Component, PropTypes } from "react";
+import React, { Component } from "react";
+import PropTypes from "prop-types";
 
 import FilterList from "./filters/FilterList.jsx";
 import AggregationWidget from "./AggregationWidget.jsx";
-import FieldSet from "metabase/admin/datamodel/components/FieldSet.jsx";
+import FieldSet from "metabase/components/FieldSet.jsx";
 
 import Query from "metabase/lib/query";
 
@@ -29,14 +30,14 @@ export default class QueryDefinitionTooltip extends Component {
                 </div>
                 { object.definition &&
                     <div className="mt2">
-                        <FieldSet legend="Definition" border="border-light">
+                        <FieldSet legend="Definition" className="border-light">
                             <div className="TooltipFilterList">
-                                { object.definition.aggregation &&
+                                { Query.getAggregations(object.definition).map(aggregation =>
                                     <AggregationWidget
-                                        aggregation={object.definition.aggregation}
+                                        aggregation={aggregation}
                                         tableMetadata={tableMetadata}
                                     />
-                                }
+                                )}
                                 <FilterList
                                     filters={Query.getFilters(object.definition)}
                                     tableMetadata={tableMetadata}

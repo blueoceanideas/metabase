@@ -16,9 +16,9 @@ Metabase is the easy, open source way for everyone in your company to ask questi
 - Let anyone on your team [ask questions](http://www.metabase.com/docs/latest/users-guide/03-asking-questions) without knowing SQL
 - Rich beautiful [dashboards](http://www.metabase.com/docs/latest/users-guide/05-sharing-answers) with auto refresh and fullscreen
 - SQL Mode for analysts and data pros
-- Create canonical [segments and metrics](http://www.metabase.com/docs/latest/administration-guide/05-segments-and-metrics) for your team to use
+- Create canonical [segments and metrics](http://www.metabase.com/docs/latest/administration-guide/07-segments-and-metrics) for your team to use
 - Send data to Slack or email on a schedule with [Pulses](http://www.metabase.com/docs/latest/users-guide/09-pulses)
-- View data in Slack anytime with [Metabot](http://www.metabase.com/docs/latest/users-guide/10-metabot)
+- View data in Slack anytime with [MetaBot](http://www.metabase.com/docs/latest/users-guide/10-metabot)
 - [Humanize data](http://www.metabase.com/docs/latest/administration-guide/03-metadata-editing) for your team by renaming, annotating and hiding fields
 
 For more information check out [metabase.com](http://www.metabase.com)
@@ -34,9 +34,10 @@ For more information check out [metabase.com](http://www.metabase.com)
 - Google BigQuery
 - SQLite
 - H2
-- Crate
+- CrateDB
 - Oracle
 - Vertica
+- Presto
 
 Don't see your favorite database? File an issue to let us know.
 

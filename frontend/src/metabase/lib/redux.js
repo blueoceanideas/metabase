@@ -1,15 +1,6 @@
 import moment from "moment";
 import _ from "underscore";
-import i from "icepick";
-
-import { createStore as originalCreateStore, applyMiddleware, compose } from "redux";
-import promise from 'redux-promise';
-import thunk from "redux-thunk";
-import createLogger from "redux-logger";
-
-import { createHistory } from 'history';
-
-import { reduxReactRouter } from 'redux-router';
+import { getIn } from "icepick";
 
 import { setRequestState, clearRequestState } from "metabase/redux/requests";
 
@@ -17,24 +8,10 @@ import { setRequestState, clearRequestState } from "metabase/redux/requests";
 export { combineReducers } from "redux";
 export { handleActions, createAction } from "redux-actions";
 
-import { DEBUG } from "metabase/lib/debug";
-
-let middleware = [thunk, promise];
-if (DEBUG) {
-    middleware.push(createLogger());
-}
-
-// common createStore with middleware applied
-export const createStore = compose(
-  applyMiddleware(...middleware),
-  reduxReactRouter({ createHistory }),
-  window.devToolsExtension ? window.devToolsExtension() : f => f
-)(originalCreateStore);
-
 // similar to createAction but accepts a (redux-thunk style) thunk and dispatches based on whether
 // the promise returned from the thunk resolves or rejects, similar to redux-promise
 export function createThunkAction(actionType, actionThunkCreator) {
-    return function(...actionArgs) {
+    function fn(...actionArgs) {
         var thunk = actionThunkCreator(...actionArgs);
         return async function(dispatch, getState) {
             try {
@@ -46,6 +23,8 @@ export function createThunkAction(actionType, actionThunkCreator) {
             }
         }
     }
+    fn.toString = () => actionType;
+    return fn;
 }
 
 // turns string timestamps into moment objects
@@ -63,18 +42,13 @@ export function momentifyObjectsTimestamps(objects, keys) {
     return _.mapObject(objects, o => momentifyTimestamps(o, keys));
 }
 
-//filters out angular cruft in resource list
-export const cleanResources = (resources) => resources
-    .filter(resource => resource.id !== undefined);
+export function momentifyArraysTimestamps(array, keys) {
+    return _.map(array, o => momentifyTimestamps(o, keys));
+}
 
-//filters out angular cruft and turns into id indexed map
-export const resourceListToMap = (resources) => cleanResources(resources)
-    .reduce((map, resource) => Object.assign({}, map, {[resource.id]: resource}), {});
-
-//filters out angular cruft in resource
-export const cleanResource = (resource) => Object.keys(resource)
-    .filter(key => key.charAt(0) !== "$")
-    .reduce((map, key) => Object.assign({}, map, {[key]: resource[key]}), {});
+// turns into id indexed map
+export const resourceListToMap = (resources) =>
+    resources.reduce((map, resource) => ({ ...map, [resource.id]: resource }), {});
 
 export const fetchData = async ({
     dispatch,
@@ -84,10 +58,10 @@ export const fetchData = async ({
     getData,
     reload
 }) => {
-    const existingData = i.getIn(getState(), existingStatePath);
+    const existingData = getIn(getState(), existingStatePath);
     const statePath = requestStatePath.concat(['fetch']);
     try {
-        const requestState = i.getIn(getState(), ["requests", ...statePath]);
+        const requestState = getIn(getState(), ["requests", ...statePath]);
         if (!requestState || requestState.error || reload) {
             dispatch(setRequestState({ statePath, state: "LOADING" }));
             const data = await getData();
@@ -114,7 +88,7 @@ export const updateData = async ({
     dependentRequestStatePaths,
     putData
 }) => {
-    const existingData = i.getIn(getState(), existingStatePath);
+    const existingData = getIn(getState(), existingStatePath);
     const statePath = requestStatePath.concat(['update']);
     try {
         dispatch(setRequestState({ statePath, state: "LOADING" }));

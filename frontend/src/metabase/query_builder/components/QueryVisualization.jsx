@@ -1,27 +1,36 @@
-import React, { Component, PropTypes } from "react";
-import ReactDOM from "react-dom";
+import React, { Component } from "react";
+import PropTypes from "prop-types";
 import { Link } from "react-router";
 
-import Icon from "metabase/components/Icon.jsx";
 import LoadingSpinner from 'metabase/components/LoadingSpinner.jsx';
+import Tooltip from "metabase/components/Tooltip";
+import Icon from "metabase/components/Icon";
+import ShrinkableList from "metabase/components/ShrinkableList";
+
 import RunButton from './RunButton.jsx';
 import VisualizationSettings from './VisualizationSettings.jsx';
 
 import VisualizationError from "./VisualizationError.jsx";
 import VisualizationResult from "./VisualizationResult.jsx";
 
-import ModalWithTrigger from "metabase/components/ModalWithTrigger.jsx";
+import Warnings from "./Warnings.jsx";
+import QueryDownloadWidget from "./QueryDownloadWidget.jsx";
+import QuestionEmbedWidget from "../containers/QuestionEmbedWidget";
+
+import { formatNumber, inflect, duration } from "metabase/lib/formatting";
+import Utils from "metabase/lib/utils";
+import MetabaseSettings from "metabase/lib/settings";
+import * as Urls from "metabase/lib/urls";
 
 import cx from "classnames";
 import _ from "underscore";
+import moment from "moment";
 
-const isEqualsDeep = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const REFRESH_TOOLTIP_THRESHOLD = 30 * 1000; // 30 seconds
 
 export default class QueryVisualization extends Component {
     constructor(props, context) {
         super(props, context);
-        this.runQuery = this.runQuery.bind(this);
-
         this.state = this._getStateFromProps(props);
     }
 
@@ -35,13 +44,12 @@ export default class QueryVisualization extends Component {
         setDisplayFn: PropTypes.func.isRequired,
         onUpdateVisualizationSettings: PropTypes.func.isRequired,
         onReplaceAllVisualizationSettings: PropTypes.func.isRequired,
-        setSortFn: PropTypes.func.isRequired,
         cellIsClickableFn: PropTypes.func,
         cellClickedFn: PropTypes.func,
         isRunning: PropTypes.bool.isRequired,
         isRunnable: PropTypes.bool.isRequired,
-        runQueryFn: PropTypes.func.isRequired,
-        cancelQueryFn: PropTypes.func
+        runQuery: PropTypes.func.isRequired,
+        cancelQuery: PropTypes.func
     };
 
     static defaultProps = {
@@ -51,8 +59,8 @@ export default class QueryVisualization extends Component {
 
     _getStateFromProps(props) {
         return {
-            lastRunDatasetQuery: JSON.parse(JSON.stringify(props.card.dataset_query)),
-            lastRunParameterValues: JSON.parse(JSON.stringify(props.parameterValues))
+            lastRunDatasetQuery: Utils.copy(props.card.dataset_query),
+            lastRunParameterValues: Utils.copy(props.parameterValues)
         };
     }
 
@@ -63,151 +71,107 @@ export default class QueryVisualization extends Component {
         }
     }
 
-    queryIsDirty() {
-        // a query is considered dirty if ANY part of it has been changed
-        return (
-            !isEqualsDeep(this.props.card.dataset_query, this.state.lastRunDatasetQuery) ||
-            !isEqualsDeep(this.props.parameterValues, this.state.lastRunParameterValues)
-        );
-    }
-
     isChartDisplay(display) {
         return (display !== "table" && display !== "scalar");
     }
 
-    runQuery() {
-        this.props.runQueryFn();
+    runQuery = () => {
+        this.props.runQuery(null, { ignoreCache: true });
     }
 
     renderHeader() {
-        const { isObjectDetail, isRunning } = this.props;
+        const { isObjectDetail, isRunnable, isRunning, isResultDirty, isAdmin, card, result, cancelQuery } = this.props;
+        const isSaved = card.id != null;
+
+        let runButtonTooltip;
+        if (!isResultDirty && result && result.cached && result.average_execution_time > REFRESH_TOOLTIP_THRESHOLD) {
+            runButtonTooltip = `This question will take approximately ${duration(result.average_execution_time)} to refresh`;
+        }
+
+        const messages = [];
+        if (result && result.cached) {
+            messages.push({
+                icon: "clock",
+                message: (
+                    <div>
+                        Updated {moment(result.updated_at).fromNow()}
+                    </div>
+                )
+            })
+        }
+        if (result && result.data && !isObjectDetail && card.display === "table") {
+            messages.push({
+                icon: "table2",
+                message: (
+                    <div>
+                        { result.data.rows_truncated != null ? ("Showing first ") : ("Showing ")}
+                        <strong>{formatNumber(result.row_count)}</strong>
+                        { " " + inflect("row", result.data.rows.length) }
+                    </div>
+                )
+            })
+        }
+
+        const isPublicLinksEnabled = MetabaseSettings.get("public_sharing");
+        const isEmbeddingEnabled = MetabaseSettings.get("embedding");
         return (
-            <div className="relative flex flex-no-shrink mt3 mb1" style={{ minHeight: "2em" }}>
-                <span className="relative z4">
+            <div className="relative flex align-center flex-no-shrink mt2 mb1" style={{ minHeight: "2em" }}>
+                <div className="z4 flex-full">
                   { !isObjectDetail && <VisualizationSettings ref="settings" {...this.props} /> }
-                </span>
-                <div className="absolute flex layout-centered left right z3">
-                    <RunButton
-                        canRun={this.props.isRunnable}
-                        isDirty={this.queryIsDirty()}
-                        isRunning={isRunning}
-                        runFn={this.runQuery}
-                        cancelFn={this.props.cancelQueryFn}
-                    />
                 </div>
-                <div className="absolute right z4 flex align-center">
-                    {!this.queryIsDirty() && this.renderCount()}
-                    {this.renderDownloadButton()}
+                <div className="z3">
+                    <Tooltip tooltip={runButtonTooltip}>
+                        <RunButton
+                            isRunnable={isRunnable}
+                            isDirty={isResultDirty}
+                            isRunning={isRunning}
+                            onRun={this.runQuery}
+                            onCancel={cancelQuery}
+                        />
+                    </Tooltip>
+                </div>
+                <div className="z4 flex-full flex align-center justify-end" style={{ lineHeight: 0 /* needed to align icons :-/ */ }}>
+                    <ShrinkableList
+                        className="flex"
+                        items={messages}
+                        renderItem={(item) =>
+                            <div className="flex-no-shrink flex align-center mx2 h5 text-grey-4">
+                                <Icon className="mr1" name={item.icon} size={12} />
+                                {item.message}
+                            </div>
+                        }
+                        renderItemSmall={(item) =>
+                            <Tooltip tooltip={<div className="p1">{item.message}</div>}>
+                                <Icon className="mx1" name={item.icon} size={16} />
+                            </Tooltip>
+                        }
+                    />
+                    { !isObjectDetail &&
+                        <Warnings warnings={this.state.warnings} className="mx1" size={18} />
+                    }
+                    { !isResultDirty && result && !result.error ?
+                        <QueryDownloadWidget
+                            className="mx1"
+                            card={card}
+                            result={result}
+                        />
+                    : null }
+                    { isSaved && (
+                        (isPublicLinksEnabled && (isAdmin || card.public_uuid)) ||
+                        (isEmbeddingEnabled && isAdmin)
+                    ) ?
+                        <QuestionEmbedWidget
+                            className="mx1"
+                            card={card}
+                        />
+                    : null }
                 </div>
             </div>
         );
     }
 
-    hasTooManyRows() {
-        const dataset_query = this.props.card.dataset_query,
-              rows = this.props.result.data.rows;
-
-        if (this.props.result.data.rows_truncated ||
-            (dataset_query.type === "query" &&
-             dataset_query.query.aggregation[0] === "rows" &&
-             rows.length === 2000))
-        {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    renderCount() {
-        let { result, isObjectDetail, card } = this.props;
-        if (result &&  result.data && !isObjectDetail && card.display === "table") {
-            return (
-                <div>
-                    { this.hasTooManyRows() ? ("Showing max of ") : ("Showing ")}
-                    <b>{result.row_count}</b>
-                    { (result.data.rows.length !== 1) ? (" rows") : (" row")}.
-                </div>
-            );
-        }
-    }
-
-    onDownloadCSV() {
-        const form = ReactDOM.findDOMNode(this._downloadCsvForm);
-        form.query.value = JSON.stringify(this.props.fullDatasetQuery);
-        form.submit();
-    }
-
-    renderDownloadButton() {
-        const { card, result } = this.props;
-
-        const csvUrl = card.id != null ? `/api/card/${card.id}/query/csv`: "/api/dataset/csv";
-
-        if (result && !result.error) {
-            if (result && result.data && result.data.rows_truncated) {
-                // this is a "large" dataset, so show a modal to inform users about this and make them click again to d/l
-                let downloadButton;
-                if (window.OSX) {
-                    downloadButton = (<button className="Button Button--primary" onClick={() => {
-                            window.OSX.saveCSV(JSON.stringify(card.dataset_query));
-                            this.refs.downloadModal.toggle()
-                        }}>Download CSV</button>);
-                } else {
-                    downloadButton = (
-                        <form ref={(c) => this._downloadCsvForm = c} method="POST" action={csvUrl}>
-                            <input type="hidden" name="query" value="" />
-                            <a className="Button Button--primary" onClick={() => {this.onDownloadCSV(); this.refs.downloadModal.toggle();}}>
-                                Download CSV
-                            </a>
-                        </form>
-                    );
-                }
-
-                return (
-                    <ModalWithTrigger
-                        key="download"
-                        ref="downloadModal"
-                        className="Modal Modal--small"
-                        triggerElement={<Icon className="mx1" title="Download this data" name='download' size={16} />}
-                    >
-                        <div style={{width: "480px"}} className="Modal--small p4 text-centered relative">
-                            <span className="absolute top right p4 text-normal text-grey-3 cursor-pointer" onClick={() => this.refs.downloadModal.toggle()}>
-                                <Icon name={'close'} size={16} />
-                            </span>
-                            <div className="p3 text-strong">
-                                <h2 className="text-bold">Download large data set</h2>
-                                <div className="pt2">Your answer has a large amount of data so we wanted to let you know it could take a while to download.</div>
-                                <div className="py4">The maximum download amount is 1 million rows.</div>
-                                {downloadButton}
-                            </div>
-                        </div>
-                    </ModalWithTrigger>
-                );
-            } else {
-                if (window.OSX) {
-                    return (
-                        <a className="mx1" title="Download this data" onClick={function() {
-                            window.OSX.saveCSV(JSON.stringify(card.dataset_query));
-                        }}>
-                            <Icon name='download' size={16} />
-                        </a>
-                    );
-                } else {
-                    return (
-                        <form ref={(c) => this._downloadCsvForm = c} method="POST" action={csvUrl}>
-                            <input type="hidden" name="query" value="" />
-                            <a className="mx1" title="Download this data" onClick={() => this.onDownloadCSV()}>
-                                <Icon name='download' size={16} />
-                            </a>
-                        </form>
-                    );
-                }
-            }
-        }
-    }
-
-
     render() {
-        const { card, databases, isObjectDetail, isRunning, result } = this.props
+        const { className, card, databases, isObjectDetail, isRunning, result } = this.props
         let viz;
 
         if (!result) {
@@ -219,23 +183,31 @@ export default class QueryVisualization extends Component {
             if (error) {
                 viz = <VisualizationError error={error} card={card} duration={result.duration} />
             } else if (result.data) {
-                viz = <VisualizationResult lastRunDatasetQuery={this.state.lastRunDatasetQuery} onOpenChartSettings={() => this.refs.settings.open()} {...this.props}/>
+                viz = (
+                    <VisualizationResult
+                        lastRunDatasetQuery={this.state.lastRunDatasetQuery}
+                        onUpdateWarnings={(warnings) => this.setState({ warnings })}
+                        onOpenChartSettings={() => this.refs.settings.open()}
+                        {...this.props}
+                        className="spread"
+                    />
+                );
             }
         }
 
-        const wrapperClasses = cx('wrapper full relative mb2 z1', {
+        const wrapperClasses = cx(className, 'relative', {
             'flex': !isObjectDetail,
             'flex-column': !isObjectDetail
         });
 
-        const visualizationClasses = cx('flex flex-full Visualization z1 px1', {
+        const visualizationClasses = cx('flex flex-full Visualization z1 relative', {
             'Visualization--errors': (result && result.error),
             'Visualization--loading': isRunning
         });
 
         return (
             <div className={wrapperClasses}>
-                {this.renderHeader()}
+                { !this.props.noHeader && this.renderHeader()}
                 { isRunning && (
                     <div className="Loading spread flex flex-column layout-centered text-brand z2">
                         <LoadingSpinner />
@@ -253,5 +225,5 @@ export default class QueryVisualization extends Component {
 const VisualizationEmptyState = ({showTutorialLink}) =>
     <div className="flex full layout-centered text-grey-1 flex-column">
         <h1>If you give me some data I can show you something cool. Run a Query!</h1>
-        { showTutorialLink && <Link to="/q?tutorial" className="link cursor-pointer my2">How do I use this thing?</Link> }
+        { showTutorialLink && <Link to={Urls.question(null, "?tutorial")} className="link cursor-pointer my2">How do I use this thing?</Link> }
     </div>

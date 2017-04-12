@@ -1,4 +1,5 @@
-import React, { PropTypes } from 'react';
+import React from 'react';
+import PropTypes from "prop-types";
 import pure from "recompose/pure";
 
 import Icon from "metabase/components/Icon.jsx";
@@ -9,7 +10,7 @@ const TitleAndDescription = ({ title, description }) =>
         <h2 className="mr1">{title}</h2>
         { description &&
             <Tooltip tooltip={description} maxWidth={'22em'}>
-                <Icon name='info'/>
+                <Icon name='info' style={{ marginTop: 3 }}/>
             </Tooltip>
         }
     </div>;
