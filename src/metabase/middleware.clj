@@ -196,7 +196,7 @@
                                                                     (when config/is-dev?
                                                                       "localhost:8080")]
                                                       :child-src   ["'self'"
-                                                                    "https://accounts.google.com"] ; TODO - double check that we actually need this for Google Auth
+                                                                    "https://accounts.google.com" ; TODO - double check that we actually need this for Google Auth
                                                                     "*.macpa.org"
                                                                     "*.staging.laruta.io"
                                                                     "*.laruta.dev"] ; TODO - double check that we actually need this for Google Auth
@@ -263,9 +263,9 @@
   [handler]
   (fn [{{:strs [origin host] :as headers} :headers, :as request}]
     (when (mdb/db-is-setup?)
-    (when-not (public-settings/site-url)
-      (when-let [site-url (or origin host)]
-        (log/info "Setting Metabase site URL to" site-url)
+      (when-not (public-settings/site-url)
+        (when-let [site-url (or origin host)]
+          (log/info "Setting Metabase site URL to" site-url)
           (public-settings/site-url site-url))))
     (handler request)))
 
