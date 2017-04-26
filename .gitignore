@@ -1,11 +1,9 @@
 \#*\#
 .\#*
-/target
 /classes
 /checkouts
 pom.xml
 pom.xml.asc
-*.jar
 *.class
 /.lein-env
 /.lein-failures
@@ -46,3 +44,6 @@ bin/release/aws-eb/metabase-aws-eb.zip
 /build.xml
 /test-report-*
 /crate-*
+/target/uberjar/classes
+/target/uberjar/stale
+/target/uberjar/metabase-metabase-SNAPSHOT.jar
