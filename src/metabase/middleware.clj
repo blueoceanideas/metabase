@@ -192,20 +192,27 @@
                                                                     "https://www.google-analytics.com" ; Safari requires the protocol
                                                                     "https://*.googleapis.com"
                                                                     "*.gstatic.com"
+                                                                    "*.macpa.org"
+                                                                    "*.staging.laruta.io"
+                                                                    "*.laruta.dev"
                                                                     (when config/is-dev?
                                                                       "localhost:8080")]
                                                       :child-src   ["'self'"
-                                                                    "https://accounts.google.com"] ; TODO - double check that we actually need this for Google Auth
+                                                                    "https://accounts.google.com"
+                                                                    "*.macpa.org"] ; TODO - double check that we actually need this for Google Auth
                                                       :style-src   ["'unsafe-inline'"
                                                                     "'self'"
-                                                                    "fonts.googleapis.com"]
+                                                                    "fonts.googleapis.com"
+                                                                    "*.macpa.org"]
                                                       :font-src    ["'self'"
                                                                     "fonts.gstatic.com"
                                                                     "themes.googleusercontent.com"
+                                                                    "*.macpa.org"
                                                                     (when config/is-dev?
                                                                       "localhost:8080")]
                                                       :img-src     ["*"
-                                                                    "'self' data:"]
+                                                                    "'self' data:"
+                                                                    "*.macpa.org"]
                                                       :connect-src ["'self'"
                                                                     "metabase.us10.list-manage.com"
                                                                     (when config/is-dev?
