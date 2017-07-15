@@ -6,6 +6,7 @@ import {
     resourceListToMap,
     fetchData,
     updateData,
+    handleEntities
 } from "metabase/lib/redux";
 
 import { normalize } from "normalizr";
@@ -16,7 +17,7 @@ import _ from "underscore";
 
 import { MetabaseApi, MetricApi, SegmentApi, RevisionsApi } from "metabase/services";
 
-const FETCH_METRICS = "metabase/metadata/FETCH_METRICS";
+export const FETCH_METRICS = "metabase/metadata/FETCH_METRICS";
 export const fetchMetrics = createThunkAction(FETCH_METRICS, (reload = false) => {
     return async (dispatch, getState) => {
         const requestStatePath = ["metadata", "metrics"];
@@ -81,7 +82,7 @@ export const updateMetricImportantFields = createThunkAction(UPDATE_METRIC_IMPOR
 });
 
 
-const FETCH_SEGMENTS = "metabase/metadata/FETCH_SEGMENTS";
+export const FETCH_SEGMENTS = "metabase/metadata/FETCH_SEGMENTS";
 export const fetchSegments = createThunkAction(FETCH_SEGMENTS, (reload = false) => {
     return async (dispatch, getState) => {
         const requestStatePath = ["metadata", "segments"];
@@ -124,7 +125,7 @@ export const updateSegment = createThunkAction(UPDATE_SEGMENT, function(segment)
     };
 });
 
-const FETCH_DATABASES = "metabase/metadata/FETCH_DATABASES";
+export const FETCH_DATABASES = "metabase/metadata/FETCH_DATABASES";
 export const fetchDatabases = createThunkAction(FETCH_DATABASES, (reload = false) => {
     return async (dispatch, getState) => {
         const requestStatePath = ["metadata", "databases"];
@@ -145,7 +146,7 @@ export const fetchDatabases = createThunkAction(FETCH_DATABASES, (reload = false
     };
 });
 
-const FETCH_DATABASE_METADATA = "metabase/metadata/FETCH_DATABASE_METADATA";
+export const FETCH_DATABASE_METADATA = "metabase/metadata/FETCH_DATABASE_METADATA";
 export const fetchDatabaseMetadata = createThunkAction(FETCH_DATABASE_METADATA, function(dbId, reload = false) {
     return async function(dispatch, getState) {
         const requestStatePath = ["metadata", "databases", dbId];
@@ -301,7 +302,7 @@ export const updateField = createThunkAction(UPDATE_FIELD, function(field) {
     };
 });
 
-const FETCH_REVISIONS = "metabase/metadata/FETCH_REVISIONS";
+export const FETCH_REVISIONS = "metabase/metadata/FETCH_REVISIONS";
 export const fetchRevisions = createThunkAction(FETCH_REVISIONS, (type, id, reload = false) => {
     return async (dispatch, getState) => {
         const requestStatePath = ["metadata", "revisions", type, id];
@@ -326,7 +327,7 @@ export const fetchRevisions = createThunkAction(FETCH_REVISIONS, (type, id, relo
 });
 
 // for fetches with data dependencies in /reference
-const FETCH_METRIC_TABLE = "metabase/metadata/FETCH_METRIC_TABLE";
+export const FETCH_METRIC_TABLE = "metabase/metadata/FETCH_METRIC_TABLE";
 export const fetchMetricTable = createThunkAction(FETCH_METRIC_TABLE, (metricId, reload = false) => {
     return async (dispatch, getState) => {
         await dispatch(fetchMetrics()); // FIXME: fetchMetric?
@@ -336,7 +337,7 @@ export const fetchMetricTable = createThunkAction(FETCH_METRIC_TABLE, (metricId,
     };
 });
 
-const FETCH_METRIC_REVISIONS = "metabase/metadata/FETCH_METRIC_REVISIONS";
+export const FETCH_METRIC_REVISIONS = "metabase/metadata/FETCH_METRIC_REVISIONS";
 export const fetchMetricRevisions = createThunkAction(FETCH_METRIC_REVISIONS, (metricId, reload = false) => {
     return async (dispatch, getState) => {
         await Promise.all([
@@ -349,7 +350,7 @@ export const fetchMetricRevisions = createThunkAction(FETCH_METRIC_REVISIONS, (m
     };
 });
 
-const FETCH_SEGMENT_FIELDS = "metabase/metadata/FETCH_SEGMENT_FIELDS";
+export const FETCH_SEGMENT_FIELDS = "metabase/metadata/FETCH_SEGMENT_FIELDS";
 export const fetchSegmentFields = createThunkAction(FETCH_SEGMENT_FIELDS, (segmentId, reload = false) => {
     return async (dispatch, getState) => {
         await dispatch(fetchSegments()); // FIXME: fetchSegment?
@@ -362,7 +363,7 @@ export const fetchSegmentFields = createThunkAction(FETCH_SEGMENT_FIELDS, (segme
     };
 });
 
-const FETCH_SEGMENT_TABLE = "metabase/metadata/FETCH_SEGMENT_TABLE";
+export const FETCH_SEGMENT_TABLE = "metabase/metadata/FETCH_SEGMENT_TABLE";
 export const fetchSegmentTable = createThunkAction(FETCH_SEGMENT_TABLE, (segmentId, reload = false) => {
     return async (dispatch, getState) => {
         await dispatch(fetchSegments()); // FIXME: fetchSegment?
@@ -372,7 +373,7 @@ export const fetchSegmentTable = createThunkAction(FETCH_SEGMENT_TABLE, (segment
     };
 });
 
-const FETCH_SEGMENT_REVISIONS = "metabase/metadata/FETCH_SEGMENT_REVISIONS";
+export const FETCH_SEGMENT_REVISIONS = "metabase/metadata/FETCH_SEGMENT_REVISIONS";
 export const fetchSegmentRevisions = createThunkAction(FETCH_SEGMENT_REVISIONS, (segmentId, reload = false) => {
     return async (dispatch, getState) => {
         await Promise.all([
@@ -426,34 +427,6 @@ const segments = handleActions({
 const revisions = handleActions({
     [FETCH_REVISIONS]: { next: (state, { payload }) => payload }
 }, {});
-
-// merge each entity from newEntities with existing entity, if any
-// this ensures partial entities don't overwrite existing entities with more properties
-function mergeEntities(entities, newEntities) {
-    entities = { ...entities };
-    for (const id in newEntities) {
-        if (id in entities) {
-            entities[id] = { ...entities[id], ...newEntities[id] };
-        } else {
-            entities[id] = newEntities[id];
-        }
-    }
-    return entities;
-}
-
-// reducer that merges payload.entities
-function handleEntities(actionPattern, entityType, reducer) {
-    return (state, action) => {
-        if (state === undefined) {
-            state = {};
-        }
-        let entities = getIn(action, ["payload", "entities", entityType])
-        if (actionPattern.test(action.type) && entities) {
-            state = mergeEntities(state, entities);
-        }
-        return reducer(state, action);
-    }
-}
 
 export default combineReducers({
     metrics:   handleEntities(/^metabase\/metadata\//, "metrics", metrics),

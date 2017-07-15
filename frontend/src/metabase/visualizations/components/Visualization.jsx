@@ -31,8 +31,8 @@ import cx from "classnames";
 export const ERROR_MESSAGE_GENERIC = "There was a problem displaying this chart.";
 export const ERROR_MESSAGE_PERMISSION = "Sorry, you don't have permission to see this card."
 
-import type { UnsavedCard, VisualizationSettings} from "metabase/meta/types/Card";
-import type { HoverObject, ClickObject, Series } from "metabase/meta/types/Visualization";
+import type { Card as CardObject, VisualizationSettings } from "metabase/meta/types/Card";
+import type { HoverObject, ClickObject, Series, OnChangeCardAndRun } from "metabase/meta/types/Visualization";
 import type { Metadata } from "metabase/meta/types/Metadata";
 
 type Props = {
@@ -63,7 +63,7 @@ type Props = {
 
     // for click actions
     metadata: Metadata,
-    onChangeCardAndRun: (card: UnsavedCard) => void,
+    onChangeCardAndRun: OnChangeCardAndRun,
 
     // used for showing content in place of visualization, e.x. dashcard filter mapping
     replacementContent: Element<any>,
@@ -84,7 +84,7 @@ type Props = {
 
 type State = {
     series: ?Series,
-    CardVisualization: ?(Component<*, VisualizationSettings, *> & {
+    CardVisualization: ?(Component<void, VisualizationSettings, void> & {
         checkRenderable: (any, any) => void,
         noHeader: boolean
     }),
@@ -98,7 +98,7 @@ type State = {
 }
 
 @ExplicitSize
-export default class Visualization extends Component<*, Props, State> {
+export default class Visualization extends Component {
     state: State;
     props: Props;
 
@@ -221,27 +221,17 @@ export default class Visualization extends Component<*, Props, State> {
         setTimeout(() => {
             this.setState({ clicked });
         }, 100);
-    }
+    };
 
-    handleOnChangeCardAndRun = (card: UnsavedCard) => {
+    // Add the underlying card of current series to onChangeCardAndRun if available
+    handleOnChangeCardAndRun = ({ nextCard, seriesIndex }: { nextCard: CardObject, seriesIndex: number }) => {
         const { series, clicked } = this.state;
 
-        const index = (clicked && clicked.seriesIndex) || 0;
-        const originalCard = series && series[index] && series[index].card;
+        const index = seriesIndex || (clicked && clicked.seriesIndex) || 0;
+        // $FlowFixMe
+        const previousCard: ?CardObject = series && series[index] && series[index].card;
 
-        let cardId = card.id || card.original_card_id;
-        // if the supplied card doesn't have an id, get it from the original card
-        if (cardId == null && originalCard) {
-            // $FlowFixMe
-            cardId = originalCard.id || originalCard.original_card_id;
-        }
-
-        this.props.onChangeCardAndRun({
-            ...card,
-            id: cardId,
-            // $FlowFixMe
-            original_card_id: cardId
-        });
+        this.props.onChangeCardAndRun({ nextCard, previousCard });
     }
 
     onRender = ({ yAxisSplit, warnings = [] } = {}) => {
@@ -250,6 +240,10 @@ export default class Visualization extends Component<*, Props, State> {
 
     onRenderError = (error) => {
         this.setState({ error })
+    }
+
+    hideActions = () => {
+        this.setState({ clicked: null })
     }
 
     render() {
@@ -406,6 +400,7 @@ export default class Visualization extends Component<*, Props, State> {
                         visualizationIsClickable={this.visualizationIsClickable}
                         onRenderError={this.onRenderError}
                         onRender={this.onRender}
+                        onActionDismissal={this.hideActions}
                         gridSize={gridSize}
                         onChangeCardAndRun={this.props.onChangeCardAndRun ? this.handleOnChangeCardAndRun : null}
                     />
@@ -414,12 +409,14 @@ export default class Visualization extends Component<*, Props, State> {
                     series={series}
                     hovered={hovered}
                 />
-                <ChartClickActions
-                    clicked={clicked}
-                    clickActions={clickActions}
-                    onChangeCardAndRun={this.props.onChangeCardAndRun ? this.handleOnChangeCardAndRun : null}
-                    onClose={() => this.setState({ clicked: null })}
-                />
+                { this.props.onChangeCardAndRun &&
+                    <ChartClickActions
+                        clicked={clicked}
+                        clickActions={clickActions}
+                        onChangeCardAndRun={this.handleOnChangeCardAndRun}
+                        onClose={this.hideActions}
+                    />
+                }
             </div>
         );
     }
